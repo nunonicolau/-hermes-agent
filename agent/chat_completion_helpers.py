@@ -2204,7 +2204,16 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                     "of text; surfaced warning to user: %s",
                     _partial_names, len(_partial_text or ""), result["error"],
                 )
-                _stub_finish_reason = "stop"
+                # Use "length" so the conversation loop's continuation
+                # machinery fires (bounded 3-retry with guidance to break
+                # the output into smaller chunks).  The stub still has
+                # tool_calls=None, so no tool auto-executes — the model
+                # gets a fresh API call with context about what happened.
+                # Fixes #31998: "stop" caused the turn to end immediately,
+                # creating an unrecoverable retry loop when users said
+                # "continue" and the model re-attempted the same large
+                # tool call.
+                _stub_finish_reason = "length"
             else:
                 logger.warning(
                     "Partial stream delivered before error; returning "
@@ -2226,6 +2235,9 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                     index=0, message=_stub_msg, finish_reason=_stub_finish_reason,
                 )],
                 usage=None,
+                # Carry the dropped tool names so the conversation loop
+                # can craft a targeted continuation prompt (#31998).
+                _dropped_tool_names=_partial_names or None,
             )
         raise result["error"]
     return result["response"]

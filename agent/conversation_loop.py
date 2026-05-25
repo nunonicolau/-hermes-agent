@@ -1527,7 +1527,37 @@ def run_conversation(
                                 _is_partial_stream_stub = (
                                     getattr(response, "id", "") == "partial-stream-stub"
                                 )
-                                if _is_partial_stream_stub:
+                                # Check if the stub had dropped tool calls (#31998).
+                                # If so, the model needs targeted guidance to break
+                                # its output into smaller chunks rather than retrying
+                                # the same large tool call that will stall again.
+                                _dropped_tools = getattr(
+                                    response, "_dropped_tool_names", None
+                                )
+                                if _is_partial_stream_stub and _dropped_tools:
+                                    _tool_list = ", ".join(
+                                        _dropped_tools[:3]
+                                    )
+                                    agent._vprint(
+                                        f"{agent.log_prefix}↻ Stream interrupted mid "
+                                        f"tool-call ({_tool_list}) — requesting "
+                                        f"chunked retry "
+                                        f"({length_continue_retries}/3)..."
+                                    )
+                                    _continue_content = (
+                                        "[System: Your previous tool call "
+                                        f"({_tool_list}) was too large and "
+                                        "the stream timed out before it "
+                                        "could be delivered. Do NOT retry "
+                                        "the same tool call with the same "
+                                        "large content. Instead, break the "
+                                        "content into multiple smaller tool "
+                                        "calls (e.g. use multiple patch calls "
+                                        "or write smaller files). Each tool "
+                                        "call's arguments must be under ~8K "
+                                        "tokens to avoid stream timeouts.]"
+                                    )
+                                elif _is_partial_stream_stub:
                                     agent._vprint(
                                         f"{agent.log_prefix}↻ Stream interrupted — "
                                         f"requesting continuation "
