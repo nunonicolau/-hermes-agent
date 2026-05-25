@@ -12963,6 +12963,12 @@ Examples:
         default=[],
         help="Environment variables for stdio servers (KEY=VALUE)",
     )
+    mcp_add_p.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Auto-enable all discovered tools without the interactive prompt "
+             "(non-interactive: shell scripts, cron, CI). See #31970.",
+    )
 
     mcp_rm_p = mcp_sub.add_parser("remove", aliases=["rm"], help="Remove an MCP server")
     mcp_rm_p.add_argument("name", help="Server name to remove")

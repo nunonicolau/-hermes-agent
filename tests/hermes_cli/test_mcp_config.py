@@ -216,6 +216,74 @@ class TestMcpAdd:
         assert "ink" in config.get("mcp_servers", {})
         assert config["mcp_servers"]["ink"]["url"] == "https://mcp.ml.ink/mcp"
 
+    def test_add_yes_flag_skips_all_interactive_prompts(self, tmp_path, capsys, monkeypatch):
+        """--yes runs cmd_mcp_add fully non-interactively for HTTP-no-auth.
+
+        Wires input() to fail on ANY call — every prompt site (auth-confirm,
+        save-anyway, tool-selection) must be bypassed. The earlier scoped
+        version of this test only covered the tool-selection prompt; this
+        widened version pins the contract reviewer of #31979 asked about.
+        See #31970.
+        """
+        fake_tools = [
+            FakeTool("create_service", "Deploy from repo"),
+            FakeTool("list_services", "List all services"),
+        ]
+
+        def mock_probe(name, config, **kw):
+            return [(t.name, t.description) for t in fake_tools]
+
+        monkeypatch.setattr("hermes_cli.mcp_config._probe_single_server", mock_probe)
+
+        def _no_input_allowed(prompt=""):
+            raise AssertionError(
+                f"--yes must not block on any input() prompt; got: {prompt!r}"
+            )
+        monkeypatch.setattr("builtins.input", _no_input_allowed)
+
+        from hermes_cli.mcp_config import cmd_mcp_add
+
+        cmd_mcp_add(_make_args(name="auto", url="https://mcp.example.com/mcp", yes=True))
+        out = capsys.readouterr().out
+        assert "Saved" in out
+        assert "2/2 tools" in out
+        assert "auto-enabling" in out
+
+        from hermes_cli.config import load_config
+        config = load_config()
+        assert "auto" in config.get("mcp_servers", {})
+
+    def test_add_yes_with_auth_but_missing_env_var_fails_loudly(self, tmp_path, capsys, monkeypatch):
+        """--yes + --auth header but no MCP_*_API_KEY env var → hard error,
+        not a silent block on the password prompt.
+
+        Cron/CI that asked for auth without credentials should fail with an
+        actionable remediation hint (set the env var), never wedge on a
+        prompt nothing can answer. Reviewer carve-out for #31979.
+        """
+        def _probe_should_not_run(name, config, **kw):
+            raise AssertionError("--yes auth-missing path must error before probe")
+        monkeypatch.setattr("hermes_cli.mcp_config._probe_single_server", _probe_should_not_run)
+
+        def _no_input_allowed(prompt=""):
+            raise AssertionError(f"--yes must not prompt; got: {prompt!r}")
+        monkeypatch.setattr("builtins.input", _no_input_allowed)
+
+        from hermes_cli.mcp_config import cmd_mcp_add
+
+        cmd_mcp_add(_make_args(
+            name="needs-auth", url="https://mcp.example.com/mcp",
+            auth="header", yes=True,
+        ))
+        out = capsys.readouterr().out
+        # Loud, actionable error — names the env var the operator must set.
+        assert "--yes" in out
+        assert "MCP_NEEDS_AUTH_API_KEY" in out
+        # Did NOT save — the server was rejected non-interactively.
+        from hermes_cli.config import load_config
+        config = load_config()
+        assert "needs-auth" not in config.get("mcp_servers", {})
+
     def test_add_stdio_server(self, tmp_path, capsys, monkeypatch):
         """Add a stdio server."""
         fake_tools = [FakeTool("search", "Search repos")]
