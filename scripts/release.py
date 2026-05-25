@@ -91,6 +91,7 @@ AUTHOR_MAP = {
     "32869278+dusterbloom@users.noreply.github.com": "dusterbloom",
     "liuhao1024@users.noreply.github.com": "liuhao1024",
     "leovillalbajr@gmail.com": "Lempkey",
+    "loicnico96@gmail.com": "loicnico96",
     "nidhi2894@gmail.com": "nidhi-singh02",
     "30312689+aashizpoudel@users.noreply.github.com": "aashizpoudel",
     "oleksii.lisikh@gmail.com": "olisikh",
