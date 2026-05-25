@@ -3785,10 +3785,18 @@ class GatewayRunner:
             from gateway.shutdown_forensics import check_systemd_timing_alignment
             _alignment = check_systemd_timing_alignment(self._restart_drain_timeout)
             if _alignment is not None and _alignment.get("mismatch"):
-                logger.warning(
+                # ``hermes gateway service install --replace`` was suggested in
+                # the original message but is not a valid command — the
+                # ``service`` subcommand does not exist and ``--replace`` is a
+                # flag on ``hermes gateway run``. Point users at
+                # ``hermes gateway install --force``, the actual recovery path
+                # verified in #31981. Logged at ERROR so it surfaces in the
+                # default journalctl view before the crash-loop scrolls it
+                # off; users mid-loop otherwise never see the WARNING tier.
+                logger.error(
                     "Stale systemd unit detected: %s has TimeoutStopSec=%.0fs but "
                     "drain_timeout=%.0fs (expected >=%.0fs). systemd may SIGKILL the "
-                    "gateway mid-drain. Run `hermes gateway service install --replace` "
+                    "gateway mid-drain. Run `hermes gateway install --force` "
                     "to regenerate the unit, or shorten agent.restart_drain_timeout.",
                     _alignment.get("unit", "(unknown)"),
                     _alignment["timeout_stop_sec"],
