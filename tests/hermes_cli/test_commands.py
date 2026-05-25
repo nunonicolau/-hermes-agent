@@ -109,6 +109,16 @@ class TestResolveCommand:
         assert resolve_command("reload_mcp").name == "reload-mcp"
         assert resolve_command("codex_runtime").name == "codex-runtime"
         assert resolve_command("tasks").name == "agents"
+        assert resolve_command("nlm").name == "notebooklm"
+        assert resolve_command("learnpack").name == "notebooklm"
+
+    def test_notebooklm_is_gateway_command(self):
+        notebooklm = resolve_command("notebooklm")
+        assert notebooklm is not None
+        assert notebooklm.name == "notebooklm"
+        assert "notebooklm" in GATEWAY_KNOWN_COMMANDS
+        assert "nlm" in GATEWAY_KNOWN_COMMANDS
+        assert "learnpack" in GATEWAY_KNOWN_COMMANDS
 
     def test_topic_is_gateway_command(self):
         topic = resolve_command("topic")

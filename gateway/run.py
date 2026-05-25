@@ -7407,6 +7407,22 @@ class GatewayRunner:
         if canonical == "kanban":
             return await self._handle_kanban_command(event)
 
+        if canonical == "notebooklm":
+            from hermes_cli.notebooklm_command import (
+                build_notebooklm_learnpack_prompt,
+                notebooklm_usage,
+            )
+
+            notebooklm_payload = event.get_command_args().strip()
+            notebooklm_prompt = build_notebooklm_learnpack_prompt(notebooklm_payload)
+            if not notebooklm_prompt:
+                return notebooklm_usage()
+            event.text = notebooklm_prompt
+            command = None
+            canonical = None
+            # Fall through to _handle_message_with_agent below so the LearnPack
+            # workflow runs as a normal agent turn with full tool access.
+
         if canonical == "retry":
             return await self._handle_retry_command(event)
         
