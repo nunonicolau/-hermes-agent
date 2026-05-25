@@ -239,6 +239,10 @@ class TestCronModeInteractions:
         monkeypatch.setenv("HERMES_YOLO_MODE", "1")
         monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
         monkeypatch.delenv("HERMES_GATEWAY_SESSION", raising=False)
+        # _YOLO_MODE_FROZEN is frozen at tools/approval.py import time and
+        # ignores monkeypatch.setenv — it must be patched directly so the
+        # yolo bypass fires before the cron deny path.
+        monkeypatch.setattr(approval_module, "_YOLO_MODE_FROZEN", True)
 
         from unittest.mock import patch as mock_patch
         with mock_patch("tools.approval._get_cron_approval_mode", return_value="deny"):
