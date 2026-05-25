@@ -1338,8 +1338,8 @@ class MCPServerTask:
                     for pid in new_pids:
                         # ``os.kill(pid, 0)`` is NOT a no-op on Windows
                         # (bpo-14484). Use the cross-platform check.
-                        from gateway.status import _pid_exists
-                        if not _pid_exists(pid):
+                        from tools.process_utils import pid_exists
+                        if not pid_exists(pid):
                             continue  # process already exited — nothing to do
                         _orphan_stdio_pids.add(pid)
 
@@ -3542,10 +3542,12 @@ def _kill_orphaned_mcp_children(include_active: bool = False) -> None:
     if not pids:
         return
 
-    # Phase 1: SIGTERM (graceful)
+    from tools.process_utils import terminate_process_tree, pid_exists
+
+    # Phase 1: SIGTERM (graceful) - terminate process tree
     for pid, server_name in pids.items():
         try:
-            os.kill(pid, _signal.SIGTERM)
+            terminate_process_tree(pid, force=False)
             logger.debug("Sent SIGTERM to orphaned MCP process %d (%s)", pid, server_name)
         except (ProcessLookupError, PermissionError, OSError):
             pass
@@ -3554,15 +3556,11 @@ def _kill_orphaned_mcp_children(include_active: bool = False) -> None:
     time.sleep(2)
 
     # Phase 3: SIGKILL any survivors
-    _sigkill = getattr(_signal, "SIGKILL", _signal.SIGTERM)
-    # ``os.kill(pid, 0)`` is NOT a no-op on Windows. Use the cross-platform
-    # existence check before escalating to SIGKILL.
-    from gateway.status import _pid_exists
     for pid, server_name in pids.items():
-        if not _pid_exists(pid):
+        if not pid_exists(pid):
             continue  # Good — exited after SIGTERM
         try:
-            os.kill(pid, _sigkill)
+            terminate_process_tree(pid, force=True)
             logger.warning(
                 "Force-killed MCP process %d (%s) after SIGTERM timeout",
                 pid, server_name,
