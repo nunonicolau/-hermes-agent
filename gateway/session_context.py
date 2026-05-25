@@ -114,23 +114,6 @@ def set_session_vars(
     return tokens
 
 
-def set_session_platform(name: str):
-    """Set only HERMES_SESSION_PLATFORM and return its reset Token.
-
-    Use this instead of ``set_session_vars(platform=name)`` when you only
-    need to inject the platform name without touching the other seven session
-    variables.  Always call ``_SESSION_PLATFORM.reset(token)`` in a
-    ``finally`` block to restore the previous value::
-
-        token = set_session_platform("telegram")
-        try:
-            ...
-        finally:
-            _SESSION_PLATFORM.reset(token)
-    """
-    return _SESSION_PLATFORM.set(name)
-
-
 def clear_session_vars(tokens: list) -> None:
     """Mark session context variables as explicitly cleared.
 

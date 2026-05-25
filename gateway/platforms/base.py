@@ -3207,22 +3207,14 @@ class BasePlatformAdapter(ABC):
                             # When auto-TTS fires from the gateway send pipeline the
                             # agent's session context is not active, so platform
                             # detection inside the tool falls back to "" (→ MP3).
-                            # Use set_session_platform (narrow setter) to avoid
-                            # clobbering the other seven session vars, and always
-                            # reset in a finally so there is no context leak.
-                            from gateway.session_context import set_session_platform, _SESSION_PLATFORM
+                            # We set it explicitly here using the adapter's known platform.
                             _platform_name = self.platform.value if hasattr(self.platform, "value") else str(self.platform).lower()
                             _existing_platform = get_session_env("HERMES_SESSION_PLATFORM", "")
-                            _platform_token = None
                             if not _existing_platform:
-                                _platform_token = set_session_platform(_platform_name)
-                            try:
-                                tts_result_str = await asyncio.to_thread(
-                                    text_to_speech_tool, text=speech_text
-                                )
-                            finally:
-                                if _platform_token is not None:
-                                    _SESSION_PLATFORM.reset(_platform_token)
+                                set_session_vars(platform=_platform_name)
+                            tts_result_str = await asyncio.to_thread(
+                                text_to_speech_tool, text=speech_text
+                            )
                             tts_data = _json.loads(tts_result_str)
                             _tts_path = tts_data.get("file_path")
                     except Exception as tts_err:
