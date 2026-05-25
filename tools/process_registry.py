@@ -410,8 +410,8 @@ class ProcessRegistry:
             return False
         # ``os.kill(pid, 0)`` is NOT a no-op on Windows (bpo-14484) — use
         # the cross-platform existence check.
-        from gateway.status import _pid_exists
-        return _pid_exists(pid)
+        from tools.process_utils import pid_exists
+        return pid_exists(pid)
 
     def _refresh_detached_session(self, session: Optional[ProcessSession]) -> Optional[ProcessSession]:
         """Update recovered host-PID sessions when the underlying process has exited."""
@@ -441,61 +441,11 @@ class ProcessRegistry:
         renderers/GPU helpers spawned by an ``agent-browser`` daemon)
         don't get reparented to init and survive cleanup.
 
-        Windows: shells out to ``taskkill /PID <pid> /T /F``. This is
-        the documented Microsoft primitive for tree-kill and matches the
-        existing convention in ``gateway.status.terminate_pid``. We can't
-        reuse the POSIX psutil path on Windows because:
-
-          1. Windows doesn't maintain a Unix-style process tree —
-             ``psutil.Process.children(recursive=True)`` walks PPID
-             links that go stale when intermediate processes exit, so
-             enumeration is best-effort and misses orphaned descendants.
-          2. ``psutil.Process.terminate()`` on Windows is
-             ``TerminateProcess()`` which kills only the target handle
-             and is a hard kill — there is no Windows equivalent of a
-             SIGTERM that cascades through a process group. (See the
-             warning in ``gateway/status.py::terminate_pid``: "os.kill
-             with SIGTERM is not equivalent to a tree-killing hard stop"
-             on Windows.) Headless Chromium has no GUI window, so the
-             softer ``taskkill /T`` without ``/F`` won't reach it either.
-
-        ``psutil`` is a hard dependency (see ``pyproject.toml``); the
-        bare-``os.kill`` fallback covers OSError / PermissionError on
-        POSIX and a missing ``taskkill.exe`` on Windows (effectively
-        unreachable on real Windows installs, but cheap insurance).
+        Delegates to tools.process_utils.terminate_process_tree for
+        unified cross-platform process tree termination.
         """
-        if _IS_WINDOWS:
-            try:
-                subprocess.run(
-                    ["taskkill", "/PID", str(pid), "/T", "/F"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    creationflags=windows_hide_flags(),
-                )
-            except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-                try:
-                    os.kill(pid, signal.SIGTERM)
-                except (OSError, ProcessLookupError, PermissionError):
-                    pass
-            return
-
-        import psutil
-        try:
-            parent = psutil.Process(pid)
-            for child in parent.children(recursive=True):
-                try:
-                    child.terminate()
-                except psutil.NoSuchProcess:
-                    pass
-            parent.terminate()
-        except psutil.NoSuchProcess:
-            return
-        except (OSError, PermissionError):
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except (OSError, ProcessLookupError, PermissionError):
-                pass
+        from tools.process_utils import terminate_process_tree
+        terminate_process_tree(pid, force=True)
 
     # ----- Spawn -----
 
