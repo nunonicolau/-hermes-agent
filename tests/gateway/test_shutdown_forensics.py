@@ -248,3 +248,37 @@ class TestCheckSystemdTimingAlignment:
         # for whatever unit pytest IS in.  Both are valid; we just ensure
         # the function doesn't raise.
         assert result is None or isinstance(result, dict)
+
+
+# ---------------------------------------------------------------------------
+# Stale-systemd-unit warning text (#31981)
+# ---------------------------------------------------------------------------
+
+class TestStaleUnitWarningCommand:
+    """The stale-systemd warning emitted by ``GatewayRunner.start`` must point
+    users at a real recovery command — the original ``hermes gateway service
+    install --replace`` was invalid (``service`` is not a subcommand and
+    ``--replace`` is a flag on ``hermes gateway run``), leaving users in the
+    crash loop described in #31981 with no actionable next step.
+    """
+
+    def _warning_block(self) -> str:
+        run_py = Path(sf.__file__).resolve().parent / "run.py"
+        text = run_py.read_text(encoding="utf-8")
+        idx = text.find("Stale systemd unit detected")
+        assert idx >= 0, "stale-systemd warning block not found in gateway/run.py"
+        return text[idx : idx + 800]
+
+    def test_warning_does_not_suggest_invalid_replace_subcommand(self):
+        block = self._warning_block()
+        assert "service install --replace" not in block, (
+            "stale-systemd warning still suggests `hermes gateway service "
+            "install --replace`, which is not a valid command — see #31981"
+        )
+
+    def test_warning_suggests_valid_install_force_command(self):
+        block = self._warning_block()
+        assert "hermes gateway install --force" in block, (
+            "stale-systemd warning must direct users to "
+            "`hermes gateway install --force` so they can regenerate the unit"
+        )
